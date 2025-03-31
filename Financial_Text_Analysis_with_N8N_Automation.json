@@ -1,0 +1,191 @@
+{
+  "name": "Financial Text Analysis with N8N Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -180
+      ],
+      "id": "c8eca028-5ed6-4f7d-8b7a-0c2a0525eff9",
+      "name": "When clicking ‘Test workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfe14dc6-2d54-4eec-b04c-4b2bb742062b",
+              "name": "text",
+              "value": "It is all baked into guidance for 2015. You have to know that could we thought a lot about what the full guidance for revenues was going to be for 2015. We are talking about 89, 90 reps by the end of the year, and we feel like the organic growth can get scooched up. I can't answer that. It seems so hypothetical out there.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        60
+      ],
+      "id": "4929cc64-84fc-40c1-9730-cbb74e66ed30",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = items[0].json.text; // Get the text from the Set node\nconst responses = text.split('\\n').filter(line => line.trim() !== ''); // Split by newline, remove empty lines\nreturn responses.map(response => ({ json: { text: response } })); // Create an item for each response"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        -180
+      ],
+      "id": "b1746e3d-d44a-4559-b222-31e7f9896c67",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyCq-AoH4XUDlnrOMM18Eg-8L6Y9Cdosg3w",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Classify this response as 'nonanswer' (vague or evasive) or 'answer' (direct and substantive). Provide a brief explanation. Response: {{ $json.text }}\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        160
+      ],
+      "id": "020f5fe6-f3b5-4294-aaaa-e8cd5883db62",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  // Access the original text from the previous node (stored in item.json.text before the HTTP Request)\n  const originalText = item.json?.text || item.jsonon?.text || \"No text available\"; // Fallback in case of typo\n  const response = item.json?.candidates?.[0]?.content?.parts?.[0]?.text || \"No response available\"; // Get Gemini's response\n  const labelMatch = response.match(/'nonanswer'|'answer'/); // Extract label\n  const explanationMatch = response.match(/Explanation: (.+)/); // Extract explanation\n  return {\n    json: {\n      text: originalText, // Use the preserved original text\n      label: labelMatch ? (labelMatch[0] === \"'nonanswer'\" ? 0 : 1) : 0,\n      explanation: explanationMatch ? explanationMatch[1] : \"No explanation provided\"\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -60
+      ],
+      "id": "c943d40d-d271-4f3a-b494-59b41793c189",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      csv: \"text,label,explanation\\n\" + \n           $input.all().map(e => \n              `\"${e.json.text}\",${e.json.label},\"${e.json.explanation}\"`).join(\"\\n\")\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        -60
+      ],
+      "id": "2c932526-d682-4b2c-971d-f17c3f57f75c",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "output.json"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1520,
+        160
+      ],
+      "id": "7f903ba9-6fc2-47f5-8448-c5d7c5f37a88",
+      "name": "Convert to File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ecf0ab95-9486-426a-aaf5-eeb15456cd9b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "67d06743d6d7669f7c098a3baf3e9341ae63f3773a98b9260f73723704ff0ef4"
+  },
+  "id": "PRdA0LA8SkBg4ey4",
+  "tags": []
+}
